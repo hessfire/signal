@@ -255,6 +255,8 @@
             if (canvasWidth === 0 || canvasHeight === 0) { canvasWidth = Math.max(300, windowWidth * 0.5); canvasHeight = canvasWidth * (3 / 4); console.warn("Canvas container zero size fallback:", canvasWidth, canvasHeight); }
             p5Canvas = createCanvas(canvasWidth, canvasHeight, { willReadFrequently: true });
             p5Canvas.parent('canvasContainer'); background(0);
+            // Без сглаживания — дитеринг должен оставаться резким при любом масштабе.
+            try { if (drawingContext) drawingContext.imageSmoothingEnabled = false; noSmooth(); } catch (e) {}
             // Инициализация воркера
             try { processingWorker=new Worker(URL.createObjectURL(new Blob([document.querySelector('#workerCode').textContent],{type:'text/javascript'})));processingWorker.onmessage=function(e){if(!e.data||!e.data.processed||typeof e.data.width==='undefined'||typeof e.data.height==='undefined'){console.warn("Worker OnMessage: Incomplete data.");workerBusy=false;return;}if(!processedImg){console.warn(`Worker OnMessage: processedImg null. Skipping update for ${e.data.width}x${e.data.height}.`);workerBusy=false;return;}if(e.data.width!==processedImg.width||e.data.height!==processedImg.height){console.warn(`Worker OnMessage: Dimension mismatch. Worker: ${e.data.width}x${e.data.height}, Buffer: ${processedImg.width}x${processedImg.height}. Skipping.`);workerBusy=false;return;}try{let result=new Uint8ClampedArray(e.data.processed);processedImg.loadPixels();if(!processedImg.pixels||result.length!==processedImg.pixels.length){console.error(`Worker OnMessage: CRITICAL - Pixels array missing or length mismatch! Result: ${result.length}, Expected: ${processedImg.pixels?.length||'N/A'}. Re-init buffer.`);processedImg=createImage(e.data.width,e.data.height);if(processedImg){processedImg.loadPixels();if(result.length===processedImg.pixels.length){processedImg.pixels.set(result);processedImg.updatePixels();}else{console.error("Worker OnMessage: Length mismatch persisted.");}}else{console.error("Worker OnMessage: Failed to re-create buffer.");}}else{processedImg.pixels.set(result);processedImg.updatePixels();}needsRedraw=true;}catch(error){console.error("Worker OnMessage: Error applying result:",error);}finally{workerBusy=false;}};processingWorker.onerror=function(e){console.error("Error in Web Worker:",e);workerBusy=false;};} catch (error){console.error("Failed to initialize Web Worker:",error);alert("Error initializing background processing.");}
             // Настройка контролов
@@ -304,10 +306,12 @@
             // Рендер: рисуем canvas только когда есть новый результат или нужно показать плейсхолдер.
             if (processedImg && processedImg.width > 0 && needsRedraw) {
                 background(0);
-                let srcW = processedImg.width, srcH = processedImg.height;
-                let displayW = min(srcW, canvasWidth), displayH = min(srcH, canvasHeight);
-                let offsetX = (canvasWidth - displayW) / 2, offsetY = (canvasHeight - displayH) / 2;
-                image(processedImg, offsetX, offsetY, displayW, displayH, 0, 0, displayW, displayH);
+                const srcW = processedImg.width, srcH = processedImg.height;
+                // Fit-inside: сохраняем пропорции, никогда не кропаем, центрируем, заполняем canvas.
+                const scale = Math.min(canvasWidth / srcW, canvasHeight / srcH);
+                const displayW = srcW * scale, displayH = srcH * scale;
+                const offsetX = (canvasWidth - displayW) / 2, offsetY = (canvasHeight - displayH) / 2;
+                image(processedImg, offsetX, offsetY, displayW, displayH);
                 needsRedraw = false;
                 placeholderDrawn = false;
             } else if (!sourceReady && !placeholderDrawn) {
