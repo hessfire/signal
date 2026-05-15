@@ -103,6 +103,8 @@
         .dropdown-item { padding: 10px 16px; color: #ddd; font-size: 14px; cursor: pointer; transition: all 0.2s; }
         .dropdown-item:hover { background-color: #3a3a3a; color: #fff; }
         .dropdown-item.active { background-color: #4a4a4a; color: #fff; }
+        .dropdown-item.action-item i { margin-right: 6px; opacity: 0.8; }
+        .dropdown-divider { height: 1px; background-color: #3a3a3a; margin: 6px 0; }
         .preset-description { font-size: 12px; color: #999; margin-top: 2px; }
         .tooltip { position: relative; display: inline-block; margin-left: 6px; cursor: help; }
         .tooltip .tooltiptext { visibility: hidden; width: 200px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; font-size: 12px; line-height: 1.4; }
@@ -164,6 +166,9 @@
                         <div class="dropdown-item" data-preset="Kotik">Kotik<div class="preset-description">Quality</div></div>
                         <div class="dropdown-item" data-preset="Moh">Moh<div class="preset-description">Pro</div></div>
                         <div class="dropdown-item active" data-preset="custom" data-custom="">Custom<div class="preset-description">Use your own settings</div></div>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-item action-item" data-action="import"><i class="fas fa-file-import"></i> Import preset…<div class="preset-description">Load a .json file</div></div>
+                        <div class="dropdown-item action-item" data-action="export"><i class="fas fa-file-export"></i> Export current…<div class="preset-description">Save current settings</div></div>
                      </div>
                  </div>
                 <!-- Слайдеры -->
@@ -173,6 +178,11 @@
                 <div class="control-group"><label for="sliderWeight3">Weight 3 <span id="weight3-value">0.31</span></label><input type="range" id="sliderWeight3" min="0" max="1" value="0.31" step="0.01" style="--slider-fill-color: #8B8B8B; background: linear-gradient(to right, rgb(139, 139, 139) 0%, rgb(139, 139, 139) 32.9%, rgb(58, 58, 58) 32.9%, rgb(58, 58, 58) 100%);"></div>
                 <div class="control-group"><label for="sliderWeight4">Weight 4 <span id="weight4-value">0.06</span></label><input type="range" id="sliderWeight4" min="0" max="1" value="0.06" step="0.01" style="--slider-fill-color: #6B6B6B; background: linear-gradient(to right, rgb(107, 107, 107) 0%, rgb(107, 107, 107) 10.4%, rgb(41, 41, 41) 10.4%, rgb(41, 41, 41) 100%);"></div>
                 <div class="control-group"><label for="sliderColorS">Color Mode <span id="colorS-value">0</span></label><input type="range" id="sliderColorS" min="0" max="4" value="0" step="1" style="--slider-fill-color: #6B6B6B; background: linear-gradient(to right, rgb(107, 107, 107) 0%, rgb(107, 107, 107) 5%, rgb(41, 41, 41) 5%, rgb(41, 41, 41) 100%);"></div>
+                <div class="control-group"><label for="sliderBrightness">Brightness <span id="brightness-value">0</span></label><input type="range" id="sliderBrightness" min="-100" max="100" value="0" step="1"></div>
+                <div class="control-group"><label for="sliderContrast">Contrast <span id="contrast-value">0</span></label><input type="range" id="sliderContrast" min="-100" max="100" value="0" step="1"></div>
+                <div class="control-group"><label for="sliderPixelScale">Pixel Scale <span id="pixelscale-value">1</span></label><input type="range" id="sliderPixelScale" min="1" max="12" value="1" step="1"></div>
+                <div class="control-group"><label for="sliderLevels">Levels <span id="levels-value">2</span></label><input type="range" id="sliderLevels" min="2" max="8" value="2" step="1"></div>
+                <div class="control-group"><label for="sliderNoise">Noise <span id="noise-value">0</span></label><input type="range" id="sliderNoise" min="0" max="100" value="0" step="1"></div>
             </div>
              <!-- Блок управления источником -->
             <div class="controls-block">
@@ -216,6 +226,9 @@
         let canvasWidth = 800; let canvasHeight = 600; let threshold = 127;
         let weight1 = 7 / 16; let weight2 = 3 / 16; let weight3 = 5 / 16;
         let weight4 = 1 / 16; let colorS = 0;
+        // --- Новые параметры для уникальных результатов ---
+        let brightness = 0; let contrast = 0;
+        let pixelScale = 1; let levels = 2; let noise = 0;
         // --- Флаги для оптимизации (избегаем лишней работы CPU/GPU) ---
         let needsReprocess = true;   // источник или параметры изменились → нужно обработать
         let needsRedraw = true;      // есть свежий обработанный кадр → нужно перерисовать canvas
@@ -281,7 +294,9 @@
                     processingWorker.postMessage({
                         sourcePixels: sourceBuffer, width: sourceWidth, height: sourceHeight,
                         threshold: threshold, weight1: weight1, weight2: weight2,
-                        weight3: weight3, weight4: weight4, colorS: colorS
+                        weight3: weight3, weight4: weight4, colorS: colorS,
+                        brightness: brightness, contrast: contrast,
+                        pixelScale: pixelScale, levels: levels, noise: noise
                     }, [sourceBuffer]);
                 }
             }
@@ -326,6 +341,12 @@
                 threshold = preset.threshold;
                 // --- Устанавливаем colorS из пресета ---
                 colorS = preset.colorMode || 0; // Используем 0, если colorMode не задан
+                // Сбрасываем доп. параметры к дефолтам, чтобы пресет давал чистую отправную точку
+                brightness = preset.brightness ?? 0;
+                contrast = preset.contrast ?? 0;
+                pixelScale = preset.pixelScale ?? 1;
+                levels = preset.levels ?? 2;
+                noise = preset.noise ?? 0;
 
                 // Обновляем UI всех слайдеров
                 updateSliderUI('sliderWeight1', weight1, 'weight1-value', 2);
@@ -335,6 +356,11 @@
                 updateSliderUI('sliderThreshold', threshold, 'threshold-value', 0);
                 // --- Обновляем UI для colorS ---
                 updateSliderUI('sliderColorS', colorS, 'colorS-value', 0);
+                updateSliderUI('sliderBrightness', brightness, 'brightness-value', 0);
+                updateSliderUI('sliderContrast', contrast, 'contrast-value', 0);
+                updateSliderUI('sliderPixelScale', pixelScale, 'pixelscale-value', 0);
+                updateSliderUI('sliderLevels', levels, 'levels-value', 0);
+                updateSliderUI('sliderNoise', noise, 'noise-value', 0);
             }
             workerBusy = false; // Разрешаем обработку
             needsReprocess = true; // параметры изменились
@@ -360,7 +386,7 @@
                 const labelSpan = document.getElementById(valueLabelId);
                 const handleSliderInput = () => {
                     const sliderValue = slider.step === '1' ? parseInt(slider.value) : parseFloat(slider.value);
-                    switch(slider.id) { case 'sliderThreshold': threshold = sliderValue; break; case 'sliderWeight1': weight1 = sliderValue; break; case 'sliderWeight2': weight2 = sliderValue; break; case 'sliderWeight3': weight3 = sliderValue; break; case 'sliderWeight4': weight4 = sliderValue; break; case 'sliderColorS': colorS = sliderValue; break; }
+                    switch(slider.id) { case 'sliderThreshold': threshold = sliderValue; break; case 'sliderWeight1': weight1 = sliderValue; break; case 'sliderWeight2': weight2 = sliderValue; break; case 'sliderWeight3': weight3 = sliderValue; break; case 'sliderWeight4': weight4 = sliderValue; break; case 'sliderColorS': colorS = sliderValue; break; case 'sliderBrightness': brightness = sliderValue; break; case 'sliderContrast': contrast = sliderValue; break; case 'sliderPixelScale': pixelScale = sliderValue; break; case 'sliderLevels': levels = sliderValue; break; case 'sliderNoise': noise = sliderValue; break; }
                     if (labelSpan) { const precision = (slider.step && slider.step.includes('.')) ? 2 : 0; labelSpan.textContent = sliderValue.toFixed(precision); }
                     updateSliderStyle(slider);
                     if (slider.id !== 'sliderColorS') { markAsCustom(); } else { workerBusy = false; }
@@ -378,8 +404,178 @@
              document.getElementById('buttonSave').addEventListener('click', () => { if (processedImg && processedImg.width > 0) { processedImg.save("SM_signal.png"); } else { alert("No processed image to save."); } });
              dropdownBtn.addEventListener('click', function() { dropdownContent.classList.toggle('show'); this.classList.toggle('active'); });
              window.addEventListener('click', function(e) { if (!dropdownBtn.contains(e.target) && !dropdownContent.contains(e.target)) { dropdownContent.classList.remove('show'); dropdownBtn.classList.remove('active'); } });
-             dropdownItems.forEach(item => { item.addEventListener('click', function() { const presetId = this.getAttribute('data-preset'); const preset = presets[presetId]; if (preset) { dropdownBtn.querySelector('span').textContent = preset.name; } applyPreset(presetId); updateActiveDropdownItem(presetId); dropdownContent.classList.remove('show'); dropdownBtn.classList.remove('active'); workerBusy = false; }); });
+             // Делегирование: работает и для динамически добавленных пресетов (импорт), и для action-айтемов.
+             dropdownContent.addEventListener('click', function(e) {
+                 const item = e.target.closest('.dropdown-item');
+                 if (!item) return;
+                 const action = item.getAttribute('data-action');
+                 if (action === 'import') {
+                     dropdownContent.classList.remove('show'); dropdownBtn.classList.remove('active');
+                     triggerPresetImport();
+                     return;
+                 }
+                 if (action === 'export') {
+                     dropdownContent.classList.remove('show'); dropdownBtn.classList.remove('active');
+                     triggerPresetExport();
+                     return;
+                 }
+                 const presetId = item.getAttribute('data-preset');
+                 if (presetId) {
+                     const preset = presets[presetId];
+                     if (preset) dropdownBtn.querySelector('span').textContent = preset.name;
+                     applyPreset(presetId);
+                     updateActiveDropdownItem(presetId);
+                 }
+                 dropdownContent.classList.remove('show');
+                 dropdownBtn.classList.remove('active');
+                 workerBusy = false;
+             });
         } // --- Конец setupControls() ---
+
+        // =====================================================================
+        // ЭКСПОРТ / ИМПОРТ ПРЕСЕТОВ (JSON)
+        // =====================================================================
+        const PRESET_FORMAT = 'signal-preset';
+        const PRESET_VERSION = 1;
+
+        function getCurrentSettings() {
+            const span = document.getElementById('presetDropdown')?.querySelector('span');
+            return {
+                format: PRESET_FORMAT,
+                version: PRESET_VERSION,
+                name: (span && span.textContent) || 'Custom',
+                weights: [weight1, weight2, weight3, weight4],
+                threshold: threshold,
+                colorMode: colorS,
+                brightness: brightness,
+                contrast: contrast,
+                pixelScale: pixelScale,
+                levels: levels,
+                noise: noise
+            };
+        }
+
+        function triggerPresetExport() {
+            const current = getCurrentSettings();
+            const defaultName = (!current.name || current.name === 'Custom') ? 'My Preset' : current.name;
+            const name = window.prompt('Preset name', defaultName);
+            if (name === null) return; // отмена
+            if (name.trim()) current.name = name.trim();
+            const blob = new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const safe = (current.name || 'preset').replace(/[^a-z0-9_-]+/gi, '_').toLowerCase() || 'preset';
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `signal_${safe}.json`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function triggerPresetImport() {
+            const fi = document.createElement('input');
+            fi.type = 'file';
+            fi.accept = '.json,application/json';
+            fi.style.display = 'none';
+            fi.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) importPresetFile(e.target.files[0]);
+                document.body.removeChild(fi);
+            });
+            document.body.appendChild(fi);
+            fi.click();
+        }
+
+        function importPresetFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.format !== PRESET_FORMAT) {
+                        alert('Not a valid signal preset (missing "format": "signal-preset").');
+                        return;
+                    }
+                    applyImportedPreset(data);
+                } catch (err) {
+                    console.error('Preset import failed:', err);
+                    alert('Failed to parse preset file: ' + (err.message || err));
+                }
+            };
+            reader.onerror = () => alert('Failed to read file.');
+            reader.readAsText(file);
+        }
+
+        function clampNum(v, def, min, max) {
+            let n = typeof v === 'number' ? v : Number(v);
+            if (!Number.isFinite(n)) n = def;
+            if (typeof min === 'number') n = Math.max(min, n);
+            if (typeof max === 'number') n = Math.min(max, n);
+            return n;
+        }
+
+        function applyImportedPreset(data) {
+            if (Array.isArray(data.weights) && data.weights.length === 4) {
+                weight1 = clampNum(data.weights[0], 0, 0, 1);
+                weight2 = clampNum(data.weights[1], 0, 0, 1);
+                weight3 = clampNum(data.weights[2], 0, 0, 1);
+                weight4 = clampNum(data.weights[3], 0, 0, 1);
+            }
+            threshold   = clampNum(data.threshold,   127, 0, 254);
+            colorS      = clampNum(data.colorMode,   0,   0, 4);
+            brightness  = clampNum(data.brightness,  0,   -100, 100);
+            contrast    = clampNum(data.contrast,    0,   -100, 100);
+            pixelScale  = clampNum(data.pixelScale,  1,   1, 12);
+            levels      = clampNum(data.levels,      2,   2, 8);
+            noise       = clampNum(data.noise,       0,   0, 100);
+
+            // Синхронизируем все слайдеры
+            updateSliderUI('sliderWeight1', weight1, 'weight1-value', 2);
+            updateSliderUI('sliderWeight2', weight2, 'weight2-value', 2);
+            updateSliderUI('sliderWeight3', weight3, 'weight3-value', 2);
+            updateSliderUI('sliderWeight4', weight4, 'weight4-value', 2);
+            updateSliderUI('sliderThreshold', threshold, 'threshold-value', 0);
+            updateSliderUI('sliderColorS', colorS, 'colorS-value', 0);
+            updateSliderUI('sliderBrightness', brightness, 'brightness-value', 0);
+            updateSliderUI('sliderContrast', contrast, 'contrast-value', 0);
+            updateSliderUI('sliderPixelScale', pixelScale, 'pixelscale-value', 0);
+            updateSliderUI('sliderLevels', levels, 'levels-value', 0);
+            updateSliderUI('sliderNoise', noise, 'noise-value', 0);
+
+            // Регистрируем как пресет в этой сессии и активируем в выпадайке
+            const name = (typeof data.name === 'string' && data.name.trim()) ? data.name.trim() : 'Imported';
+            const presetId = 'imported_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+            presets[presetId] = {
+                name: name,
+                weights: [weight1, weight2, weight3, weight4],
+                threshold: threshold,
+                colorMode: colorS,
+                brightness: brightness,
+                contrast: contrast,
+                pixelScale: pixelScale,
+                levels: levels,
+                noise: noise,
+                description: 'Imported'
+            };
+            addImportedPresetItem(presetId, name);
+
+            const span = document.getElementById('presetDropdown')?.querySelector('span');
+            if (span) span.textContent = name;
+            updateActiveDropdownItem(presetId);
+
+            needsReprocess = true;
+            workerBusy = false;
+        }
+
+        function addImportedPresetItem(presetId, name) {
+            const dropdown = document.getElementById('presetDropdownContent');
+            if (!dropdown) return;
+            const divider = dropdown.querySelector('.dropdown-divider');
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            item.setAttribute('data-preset', presetId);
+            const safe = String(name).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+            item.innerHTML = `${safe}<div class="preset-description">Imported</div>`;
+            if (divider) dropdown.insertBefore(item, divider);
+            else dropdown.appendChild(item);
+        }
 
         // =====================================================================
         // ВИДЕО-РЕЖИМ: декод через HTMLVideoElement, кодирование через ffmpeg.wasm
@@ -497,7 +693,8 @@
                 worker.addEventListener('error', errHandler);
                 worker.postMessage({
                     sourcePixels: rgbaBuffer, width: w, height: h,
-                    threshold, weight1, weight2, weight3, weight4, colorS
+                    threshold, weight1, weight2, weight3, weight4, colorS,
+                    brightness, contrast, pixelScale, levels, noise
                 }, [rgbaBuffer]);
             });
         }
@@ -836,11 +1033,146 @@
 
     </script>
 
-    <!-- Код Web Worker (ваш оригинальный алгоритм + возврат width/height) - БЕЗ ИЗМЕНЕНИЙ -->
+    <!-- Web Worker: brightness/contrast → downsample → dither (levels + noise) → upsample -->
     <script id="workerCode" type="text/js-worker">
-        function clamp(val){return Math.min(255,Math.max(0,val));}
-        function adjustColor(r,g,b,errorR,errorG,errorB,colorS){let newR=clamp(r+errorR);let newG=clamp(g+errorG);let newB=clamp(b+errorB);if(colorS==1){return[newG,newB,newB];}else if(colorS==2){return[newG,newB,newR];}else if(colorS==3){return[newB,newG,newR];}else if(colorS==4){return[newB,newR,newG];}else{return[newR,newG,newB];}}
-        self.onmessage=function(e){let data=e.data;if(!data||!data.sourcePixels||typeof data.width==='undefined'){return;}let src=new Uint8ClampedArray(data.sourcePixels);let width=data.width;let height=data.height;let threshold=data.threshold;let weight1=data.weight1;let weight2=data.weight2;let weight3=data.weight3;let weight4=data.weight4;let colorS=data.colorS;let temp=new Uint8ClampedArray(src);for(let y=0;y<height-1;y++){for(let x=0;x<width-1;x++){let idx=(x+y*width)*4;let r=temp[idx];let g=temp[idx+1];let b=temp[idx+2];let newR=(r>threshold)?255:0;let newG=(g>threshold)?255:0;let newB=(b>threshold)?255:0;let errorR=r-newR;let errorG=g-newG;let errorB=b-newB;src[idx]=newR;src[idx+1]=newG;src[idx+2]=newB;src[idx+3]=255;let adjusted;if(x+1<width){let idx1=((x+1)+y*width)*4;adjusted=adjustColor(temp[idx1],temp[idx1+1],temp[idx1+2],errorR*weight1,errorG*weight1,errorB*weight1,colorS);temp[idx1]=adjusted[0];temp[idx1+1]=adjusted[1];temp[idx1+2]=adjusted[2];}if(x-1>=0&&y+1<height){let idx2=((x-1)+(y+1)*width)*4;adjusted=adjustColor(temp[idx2],temp[idx2+1],temp[idx2+2],errorR*weight2,errorG*weight2,errorB*weight2,colorS);temp[idx2]=adjusted[0];temp[idx2+1]=adjusted[1];temp[idx2+2]=adjusted[2];}if(y+1<height){let idx3=(x+(y+1)*width)*4;adjusted=adjustColor(temp[idx3],temp[idx3+1],temp[idx3+2],errorR*weight3,errorG*weight3,errorB*weight3,colorS);temp[idx3]=adjusted[0];temp[idx3+1]=adjusted[1];temp[idx3+2]=adjusted[2];}if(x+1<width&&y+1<height){let idx4=((x+1)+(y+1)*width)*4;adjusted=adjustColor(temp[idx4],temp[idx4+1],temp[idx4+2],errorR*weight4,errorG*weight4,errorB*weight4,colorS);temp[idx4]=adjusted[0];temp[idx4+1]=adjusted[1];temp[idx4+2]=adjusted[2];}}}postMessage({processed:src.buffer,width:width,height:height},[src.buffer]);};
+        function clamp(v){return v<0?0:v>255?255:v;}
+        function adjustColor(r,g,b,eR,eG,eB,cs){
+            var nR=clamp(r+eR),nG=clamp(g+eG),nB=clamp(b+eB);
+            if(cs===1)return [nG,nB,nB];
+            if(cs===2)return [nG,nB,nR];
+            if(cs===3)return [nB,nG,nR];
+            if(cs===4)return [nB,nR,nG];
+            return [nR,nG,nB];
+        }
+
+        self.onmessage = function(e) {
+            var data = e.data;
+            if (!data || !data.sourcePixels || typeof data.width === 'undefined') return;
+
+            var fullSrc = new Uint8ClampedArray(data.sourcePixels);
+            var width = data.width, height = data.height;
+            var threshold = data.threshold;
+            var w1 = data.weight1, w2 = data.weight2, w3 = data.weight3, w4 = data.weight4;
+            var colorS = data.colorS;
+            var brightness = data.brightness || 0;
+            var contrast = data.contrast || 0;
+            var pixelScale = Math.max(1, (data.pixelScale | 0) || 1);
+            var levels = Math.max(2, (data.levels | 0) || 2);
+            var noise = data.noise || 0;
+
+            // 1. Pre-pass: brightness + contrast (in-place on fullSrc).
+            if (brightness !== 0 || contrast !== 0) {
+                var c255 = contrast * 2.55;
+                var cf = (259 * (c255 + 255)) / (255 * (259 - c255));
+                for (var i = 0; i < fullSrc.length; i += 4) {
+                    fullSrc[i]   = clamp(cf * (fullSrc[i]   - 128) + 128 + brightness);
+                    fullSrc[i+1] = clamp(cf * (fullSrc[i+1] - 128) + 128 + brightness);
+                    fullSrc[i+2] = clamp(cf * (fullSrc[i+2] - 128) + 128 + brightness);
+                }
+            }
+
+            // 2. Downsample for pixel scale (block-average → smaller buffer).
+            var workW, workH, workSrc;
+            if (pixelScale > 1) {
+                workW = Math.max(1, Math.floor(width / pixelScale));
+                workH = Math.max(1, Math.floor(height / pixelScale));
+                workSrc = new Uint8ClampedArray(workW * workH * 4);
+                for (var by = 0; by < workH; by++) {
+                    for (var bx = 0; bx < workW; bx++) {
+                        var sR=0, sG=0, sB=0, cnt=0;
+                        for (var dy = 0; dy < pixelScale; dy++) {
+                            for (var dx = 0; dx < pixelScale; dx++) {
+                                var sx = bx * pixelScale + dx, sy = by * pixelScale + dy;
+                                if (sx < width && sy < height) {
+                                    var si = (sy * width + sx) * 4;
+                                    sR += fullSrc[si]; sG += fullSrc[si+1]; sB += fullSrc[si+2]; cnt++;
+                                }
+                            }
+                        }
+                        var di = (by * workW + bx) * 4;
+                        workSrc[di] = sR / cnt;
+                        workSrc[di+1] = sG / cnt;
+                        workSrc[di+2] = sB / cnt;
+                        workSrc[di+3] = 255;
+                    }
+                }
+            } else {
+                workW = width; workH = height; workSrc = fullSrc;
+            }
+
+            // 3. Error-diffusion dither (с levels-квантованием и noise).
+            // levels=2 — оригинальный бинарный режим с threshold; levels>2 — равномерные ступени.
+            var step = 255 / (levels - 1);
+            var temp = new Uint8ClampedArray(workSrc);
+            var work = new Uint8ClampedArray(workSrc.length);
+            for (var y = 0; y < workH - 1; y++) {
+                for (var x = 0; x < workW - 1; x++) {
+                    var idx = (x + y * workW) * 4;
+                    var r = temp[idx], g = temp[idx+1], b = temp[idx+2];
+                    if (noise > 0) {
+                        r = clamp(r + (Math.random() - 0.5) * noise);
+                        g = clamp(g + (Math.random() - 0.5) * noise);
+                        b = clamp(b + (Math.random() - 0.5) * noise);
+                    }
+                    var newR, newG, newB;
+                    if (levels === 2) {
+                        newR = r > threshold ? 255 : 0;
+                        newG = g > threshold ? 255 : 0;
+                        newB = b > threshold ? 255 : 0;
+                    } else {
+                        newR = Math.round(r / step) * step;
+                        newG = Math.round(g / step) * step;
+                        newB = Math.round(b / step) * step;
+                    }
+                    var eR = r - newR, eG = g - newG, eB = b - newB;
+                    work[idx] = newR; work[idx+1] = newG; work[idx+2] = newB; work[idx+3] = 255;
+
+                    var adj;
+                    if (x + 1 < workW) {
+                        var i1 = ((x+1) + y * workW) * 4;
+                        adj = adjustColor(temp[i1], temp[i1+1], temp[i1+2], eR*w1, eG*w1, eB*w1, colorS);
+                        temp[i1] = adj[0]; temp[i1+1] = adj[1]; temp[i1+2] = adj[2];
+                    }
+                    if (x - 1 >= 0 && y + 1 < workH) {
+                        var i2 = ((x-1) + (y+1) * workW) * 4;
+                        adj = adjustColor(temp[i2], temp[i2+1], temp[i2+2], eR*w2, eG*w2, eB*w2, colorS);
+                        temp[i2] = adj[0]; temp[i2+1] = adj[1]; temp[i2+2] = adj[2];
+                    }
+                    if (y + 1 < workH) {
+                        var i3 = (x + (y+1) * workW) * 4;
+                        adj = adjustColor(temp[i3], temp[i3+1], temp[i3+2], eR*w3, eG*w3, eB*w3, colorS);
+                        temp[i3] = adj[0]; temp[i3+1] = adj[1]; temp[i3+2] = adj[2];
+                    }
+                    if (x + 1 < workW && y + 1 < workH) {
+                        var i4 = ((x+1) + (y+1) * workW) * 4;
+                        adj = adjustColor(temp[i4], temp[i4+1], temp[i4+2], eR*w4, eG*w4, eB*w4, colorS);
+                        temp[i4] = adj[0]; temp[i4+1] = adj[1]; temp[i4+2] = adj[2];
+                    }
+                }
+            }
+
+            // 4. Upsample обратно до исходных размеров (nearest-neighbor, сохраняет «кубики»).
+            var out;
+            if (pixelScale > 1) {
+                out = new Uint8ClampedArray(width * height * 4);
+                for (var oy = 0; oy < height; oy++) {
+                    var wy = Math.min(workH - 1, (oy / pixelScale) | 0);
+                    for (var ox = 0; ox < width; ox++) {
+                        var wx = Math.min(workW - 1, (ox / pixelScale) | 0);
+                        var so = (wy * workW + wx) * 4;
+                        var doo = (oy * width + ox) * 4;
+                        out[doo] = work[so];
+                        out[doo+1] = work[so+1];
+                        out[doo+2] = work[so+2];
+                        out[doo+3] = 255;
+                    }
+                }
+            } else {
+                out = work;
+            }
+
+            postMessage({ processed: out.buffer, width: width, height: height }, [out.buffer]);
+        };
     </script>
 
 
